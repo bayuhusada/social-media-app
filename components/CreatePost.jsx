@@ -1,17 +1,29 @@
-import { useState } from 'react'
+'use client'
+
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
-export default function CreatePost() {
+export default function CreatePost({ onPostCreated, postToEdit }) {
   const [content, setContent] = useState('')
   const [image, setImage] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (postToEdit) {
+      setContent(postToEdit.content)
+      // Note: We can't set the image here as we don't have access to the file object
+    }
+  }, [postToEdit])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setLoading(true)
+
     try {
       const user = supabase.auth.user()
       if (!user) throw new Error('User not authenticated')
 
-      let imageUrl = null
+      let imageUrl = postToEdit ? postToEdit.image_url : null
       if (image) {
         const { data, error } = await supabase.storage
           .from('images')
@@ -20,18 +32,35 @@ export default function CreatePost() {
         imageUrl = data.path
       }
 
-      const { error } = await supabase.from('posts').insert({
+      const postData = {
         user_id: user.id,
         content,
         image_url: imageUrl,
-      })
+      }
+
+      let error
+      if (postToEdit) {
+        const { error: updateError } = await supabase
+          .from('posts')
+          .update(postData)
+          .eq('id', postToEdit.id)
+        error = updateError
+      } else {
+        const { error: insertError } = await supabase
+          .from('posts')
+          .insert(postData)
+        error = insertError
+      }
+
       if (error) throw error
 
       setContent('')
       setImage(null)
-      // Show success message or update feed
+      onPostCreated()
     } catch (error) {
       alert(error.message)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -42,6 +71,7 @@ export default function CreatePost() {
         onChange={(e) => setContent(e.target.value)}
         placeholder="What's on your mind?"
         className="w-full p-2 border rounded"
+        required
       />
       <input
         type="file"
@@ -49,8 +79,12 @@ export default function CreatePost() {
         accept="image/*"
         className="w-full p-2 border rounded"
       />
-      <button type="submit" className="w-full p-2 bg-blue-500 text-white rounded">
-        Post
+      <button 
+        type="submit" 
+        className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+        disabled={loading}
+      >
+        {loading ? 'Posting...' : (postToEdit ? 'Update Post' : 'Create Post')}
       </button>
     </form>
   )

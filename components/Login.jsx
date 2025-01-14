@@ -6,19 +6,44 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 export default function Login() {
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
   const handleLogin = async (e) => {
     e.preventDefault()
+    setLoading(true)
     try {
-      setLoading(true)
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) throw error
+      // Step 1: Get the user's email using their username
+      const { data: profiles, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, username')
+        .eq('username', username)
+        .limit(1)
+
+      console.log('Profile query result:', profiles)
+
+      if (profileError) throw profileError
+
+      if (!profiles || profiles.length === 0) {
+        throw new Error(`Username not found: ${username}`)
+      }
+
+      const userId = profiles[0].id
+
+      // Step 2: Sign in using the user's ID (which is their email) and password
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: userId,
+        password
+      })
+      
+      if (signInError) throw signInError
+      
+      console.log('Login successful:', signInData)
       router.push('/') // Redirect to home page after successful login
     } catch (error) {
+      console.error('Login error:', error)
       alert(error.message)
     } finally {
       setLoading(false)
@@ -30,13 +55,13 @@ export default function Login() {
       <h2 className="text-2xl font-bold mb-4">Login</h2>
       <form onSubmit={handleLogin} className="space-y-4">
         <div>
-          <label htmlFor="email" className="block mb-1">Email</label>
+          <label htmlFor="username" className="block mb-1">Username</label>
           <input
-            id="email"
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            id="username"
+            type="text"
+            placeholder="Enter your username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
             required
             className="w-full px-3 py-2 border rounded"
           />

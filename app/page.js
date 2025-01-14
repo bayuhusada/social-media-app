@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import CreatePost from '../components/CreatePost'
-import Post from '../components/Post'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import CreatePost from '../components/CreatePost'
+import PostList from '../components/PostList'
 
 export default function Home() {
   const [session, setSession] = useState(null)
-  const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -20,8 +20,6 @@ export default function Home() {
 
       if (!session) {
         router.push('/login')
-      } else {
-        fetchPosts()
       }
     }
 
@@ -38,15 +36,6 @@ export default function Home() {
 
     return () => subscription.unsubscribe()
   }, [router])
-
-  const fetchPosts = async () => {
-    const { data, error } = await supabase
-      .from('posts')
-      .select('*')
-      .order('created_at', { ascending: false })
-    if (error) console.error('Error fetching posts:', error)
-    else setPosts(data)
-  }
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -65,18 +54,19 @@ export default function Home() {
     <div className="container mx-auto p-4">
       <header className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Social Media App</h1>
-        <button 
-          onClick={handleSignOut} 
-          className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
-        >
-          Sign Out
-        </button>
+        <nav className="space-x-4">
+          <Link href="/profile" className="text-blue-500 hover:underline">Profile</Link>
+          <button 
+            onClick={handleSignOut} 
+            className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+          >
+            Sign Out
+          </button>
+        </nav>
       </header>
-      <CreatePost onPostCreated={fetchPosts} />
-      <div className="mt-8 space-y-4">
-        {posts.map((post) => (
-          <Post key={post.id} post={post} onPostUpdated={fetchPosts} />
-        ))}
+      <CreatePost onPostCreated={() => {}} />
+      <div className="mt-8">
+        <PostList />
       </div>
     </div>
   )

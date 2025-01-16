@@ -17,32 +17,30 @@ export default function Register() {
     setLoading(true)
     try {
       // Step 1: Sign up the user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: { username }
         }
       })
-      if (authError) throw authError
+      if (error) throw error
 
-      console.log('Auth data:', authData)
+      console.log('Sign up successful:', data)
 
       // Step 2: Insert the profile
-      const { data: profileData, error: profileError } = await supabase.auth.getUser()
-      
-      if (profileError) throw profileError
-
-      if (profileData && profileData.user) {
-        const { error: insertError } = await supabase
+      if (data.user) {
+        const { error: profileError } = await supabase
           .from('profiles')
-          .insert({ id: profileData.user.id, username })
+          .insert({ id: data.user.id, username })
 
-        if (insertError) throw insertError
-
-        console.log('Profile inserted successfully')
-      } else {
-        throw new Error('User data not available')
+        if (profileError) {
+          console.error('Error inserting profile:', profileError)
+          // Even if profile insertion fails, we don't throw an error here
+          // because the user account has been created successfully
+        } else {
+          console.log('Profile inserted successfully')
+        }
       }
 
       alert('Registration successful! Please check your email for verification.')

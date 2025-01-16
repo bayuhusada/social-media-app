@@ -3,62 +3,72 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
-export default function CreatePost({ onPostCreated, postToEdit }) {
+export default function CreatePost({ onPostCreated }) {
   const [content, setContent] = useState('')
   const [image, setImage] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [username, setUsername] = useState('')
 
   useEffect(() => {
-    if (postToEdit) {
-      setContent(postToEdit.content)
-      // Note: We can't set the image here as we don't have access to the file object
+    const fetchUsername = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', user.id)
+          .single()
+        if (data) setUsername(data.username)
+        if (error) console.error('Error fetching username:', error)
+      }
     }
-  }, [postToEdit])
+    fetchUsername()
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      const user = supabase.auth.user()
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError) throw userError
+
       if (!user) throw new Error('User not authenticated')
 
-      let imageUrl = postToEdit ? postToEdit.image_url : null
+      let imageUrl = null
       if (image) {
+        const fileExt = image.name.split('.').pop()
+        const fileName = `${Math.random()}.${fileExt}`
         const { data, error } = await supabase.storage
           .from('images')
-          .upload(`${user.id}/${Date.now()}.jpg`, image)
-        if (error) throw error
-        imageUrl = data.path
+          .upload(`${user.id}/${fileName}`, image)
+        if (error) {
+          if (error.message.includes('Bucket not found')) {
+            throw new Error('Image storage is not set up. Please contact the administrator.')
+          }
+          throw error
+        }
+        const { data: { publicUrl } } = supabase.storage
+          .from('images')
+          .getPublicUrl(`${user.id}/${fileName}`)
+        imageUrl = publicUrl
       }
 
-      const postData = {
+      const { error } = await supabase.from('posts').insert({
         user_id: user.id,
         content,
         image_url: imageUrl,
-      }
-
-      let error
-      if (postToEdit) {
-        const { error: updateError } = await supabase
-          .from('posts')
-          .update(postData)
-          .eq('id', postToEdit.id)
-        error = updateError
-      } else {
-        const { error: insertError } = await supabase
-          .from('posts')
-          .insert(postData)
-        error = insertError
-      }
-
+        username: username // Add username to the post
+      })
       if (error) throw error
 
       setContent('')
       setImage(null)
-      onPostCreated()
+      if (onPostCreated) onPostCreated()
+      alert('Post created successfully!')
     } catch (error) {
-      alert(error.message)
+      console.error('Error creating post:', error)
+      alert('Error creating post: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -84,7 +94,7 @@ export default function CreatePost({ onPostCreated, postToEdit }) {
         className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
         disabled={loading}
       >
-        {loading ? 'Posting...' : (postToEdit ? 'Update Post' : 'Create Post')}
+        {loading ? 'Creating Post...' : 'Create Post'}
       </button>
     </form>
   )

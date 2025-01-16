@@ -14,7 +14,11 @@ export default function Home() {
 
   useEffect(() => {
     const fetchSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error) {
+        console.error('Error fetching session:', error)
+        return
+      }
       setSession(session)
       setLoading(false)
 
@@ -25,9 +29,7 @@ export default function Home() {
 
     fetchSession()
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       if (!session) {
         router.push('/login')
@@ -38,8 +40,12 @@ export default function Home() {
   }, [router])
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push('/login')
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      console.error('Error signing out:', error)
+    } else {
+      router.push('/login')
+    }
   }
 
   if (loading) {
@@ -64,7 +70,7 @@ export default function Home() {
           </button>
         </nav>
       </header>
-      <CreatePost onPostCreated={() => {}} />
+      <CreatePost />
       <div className="mt-8">
         <PostList />
       </div>

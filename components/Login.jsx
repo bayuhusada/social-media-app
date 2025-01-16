@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 export default function Login() {
-  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -15,36 +15,44 @@ export default function Login() {
     e.preventDefault()
     setLoading(true)
     try {
-      // Step 1: Get the user's email using their username
-      const { data: profiles, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, username')
-        .eq('username', username)
-        .limit(1)
-
-      console.log('Profile query result:', profiles)
-
-      if (profileError) throw profileError
-
-      if (!profiles || profiles.length === 0) {
-        throw new Error(`Username not found: ${username}`)
-      }
-
-      const userId = profiles[0].id
-
-      // Step 2: Sign in using the user's ID (which is their email) and password
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: userId,
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
         password
       })
       
-      if (signInError) throw signInError
+      if (error) throw error
       
-      console.log('Login successful:', signInData)
+      console.log('Login successful:', data)
+
+      // Check if the user has a profile
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single()
+
+      if (profileError) {
+        console.error('Error fetching profile:', profileError)
+        // If there's no profile, create one
+        if (profileError.code === 'PGRST116') {
+          const { error: insertError } = await supabase
+            .from('profiles')
+            .insert({ id: data.user.id, username: data.user.email.split('@')[0] })
+          
+          if (insertError) {
+            console.error('Error creating profile:', insertError)
+          } else {
+            console.log('Profile created successfully')
+          }
+        }
+      } else {
+        console.log('Profile found:', profileData)
+      }
+
       router.push('/') // Redirect to home page after successful login
     } catch (error) {
       console.error('Login error:', error)
-      alert(error.message)
+      alert('Login failed: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -55,13 +63,13 @@ export default function Login() {
       <h2 className="text-2xl font-bold mb-4">Login</h2>
       <form onSubmit={handleLogin} className="space-y-4">
         <div>
-          <label htmlFor="username" className="block mb-1">Username</label>
+          <label htmlFor="email" className="block mb-1">Email</label>
           <input
-            id="username"
-            type="text"
-            placeholder="Enter your username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            id="email"
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             required
             className="w-full px-3 py-2 border rounded"
           />

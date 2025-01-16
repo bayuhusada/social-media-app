@@ -4,36 +4,30 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import Post from './Post'
 
-export default function PostList({ userId }) {
+export default function PostList() {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetchPosts()
-  }, [userId])
 
   const fetchPosts = async () => {
     setLoading(true)
     try {
-      let query = supabase.from('posts').select('*').order('created_at', { ascending: false })
-      
-      if (userId) {
-        query = query.eq('user_id', userId)
-      }
-
-      const { data, error } = await query
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .order('created_at', { ascending: false })
       if (error) throw error
       setPosts(data)
     } catch (error) {
       console.error('Error fetching posts:', error)
+      alert('Error fetching posts. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  const handlePostUpdated = () => {
+  useEffect(() => {
     fetchPosts()
-  }
+  }, [])
 
   if (loading) {
     return <div>Loading posts...</div>
@@ -42,7 +36,7 @@ export default function PostList({ userId }) {
   return (
     <div className="space-y-4">
       {posts.map((post) => (
-        <Post key={post.id} post={post} onPostUpdated={handlePostUpdated} />
+        <Post key={post.id} post={post} onPostUpdated={fetchPosts} />
       ))}
     </div>
   )
